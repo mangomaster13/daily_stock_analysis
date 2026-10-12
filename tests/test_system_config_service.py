@@ -1270,6 +1270,57 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertNotIn("llm_primary", status["required_missing_keys"])
         self.assertIn("llm_agent", status["required_missing_keys"])
 
+    def test_get_setup_status_recognizes_codex_chat_without_api_keys(self) -> None:
+        self._rewrite_env(
+            "GENERATION_BACKEND=codex_cli",
+            "GENERATION_FALLBACK_BACKEND=",
+            "AGENT_BACKEND=codex_app_server",
+            "AGENT_ARCH=single",
+            "AGENT_ORCHESTRATOR_TIMEOUT_S=300",
+            "STOCK_LIST=600519",
+        )
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("src.services.system_config_service.shutil.which", return_value="/usr/bin/codex"), \
+             patch("src.services.agent_backend_status_service.AgentBackendStatusService._codex_cheap_status",
+                   return_value={"available": True}) as probe:
+            status = self.service.get_setup_status()
+
+        probe.assert_called_once()
+        self.assertTrue(status["is_complete"])
+        self.assertTrue(status["ready_for_smoke"])
+        self.assertEqual(status["required_missing_keys"], [])
+        agent_check = next(check for check in status["checks"] if check["key"] == "llm_agent")
+        self.assertEqual(agent_check["status"], "configured")
+        self.assertIn("Codex", agent_check["message"])
+
+    def test_get_setup_status_keeps_unavailable_codex_chat_actionable(self) -> None:
+        for setting, message in (
+            ("AGENT_ARCH=multi", "single-agent"),
+            ("AGENT_ORCHESTRATOR_TIMEOUT_S=0", "greater than 0"),
+            ("AGENT_MODE=false", "disabled"),
+            ("AGENT_ARCH=single", "Codex command unavailable"),
+        ):
+            with self.subTest(setting=setting):
+                self._rewrite_env(
+                    "GENERATION_BACKEND=codex_cli",
+                    "GENERATION_FALLBACK_BACKEND=",
+                    "AGENT_BACKEND=codex_app_server",
+                    setting,
+                    "STOCK_LIST=600519",
+                )
+                with patch.dict(os.environ, {}, clear=True), \
+                     patch("src.services.system_config_service.shutil.which", return_value="/usr/bin/codex"), \
+                     patch("src.services.agent_backend_status_service.AgentBackendStatusService._codex_cheap_status",
+                           return_value={"available": False, "message": "Codex command unavailable"}):
+                    status = self.service.get_setup_status()
+
+                self.assertFalse(status["is_complete"])
+                self.assertEqual(status["required_missing_keys"], ["llm_agent"])
+                agent_check = next(check for check in status["checks"] if check["key"] == "llm_agent")
+                self.assertEqual(agent_check["status"], "needs_action")
+                self.assertIn(message, agent_check["message"])
+                self.assertIn("Agent", agent_check["next_step"])
+
     def test_get_setup_status_allows_local_cli_primary_smoke_without_agent_model(self) -> None:
         self._rewrite_env(
             "GENERATION_BACKEND=claude_code_cli",

@@ -95,6 +95,8 @@ AGENT_BACKEND=auto
 
 Web 启用步骤：打开「设置 → Agent 设置 → 问股生成方式」，选择「Codex 本地 Agent（实验）」，确认架构为「单 Agent」，并将 Agent 整体时限设置为大于 0 后保存。设置页只检查当前配置、本机 Codex 命令和所需 App Server 协议是否允许尝试，不登录、不调用模型，也不读取股票数据。保存后可直接回到问股页提问；第一次问题就是第一次真实执行。要恢复原有行为，选择「自动（推荐）」并保存。
 
+首次启动配置检查会识别 `AGENT_BACKEND=codex_app_server`，复用上述环境检查，不再要求额外配置 LiteLLM Agent 渠道。环境检查通过不代表已验证登录、模型调用或股票数据可用性；若检查失败，仍会提示前往 Agent 设置处理。
+
 - Codex 必须安装并登录在**运行 DSA 后端的设备**上；DSA 不读取或保存 Codex 凭据，App Server 进程使用 Codex 自身登录态。Docker、远程服务器和 Desktop 的 PATH / 登录态彼此独立。在 Desktop 中从 Finder/Dock 启动时，后端只继承 Desktop 构造的真实 PATH；若状态提示找不到 Codex，请将 Codex CLI 安装到后端 PATH 可见位置并完全重启 DSA，不要只在另一个终端窗口验证。
 - Phase 6 的 Codex App Server Agent 当前支持 macOS、Linux，以及 DSA 后端完整运行于 WSL 的环境；原生 Windows 后端会在状态检查和 transport 启动前明确拒绝。此限制不影响 Phase 2 `GENERATION_BACKEND=codex_cli` 已有的 Windows 生成能力。
 - Codex 当前只开放已保存分析上下文、全局回测汇总和策略回测汇总的只读查询。本期只验证并承诺这三个工具的独立进程、停止、超时和回收闭环；实时行情、新闻、市场热点、技术指标重算、个股回测明细和持仓工具未纳入本期验证，因此不会出现在 Codex 的工具列表中。需要这些能力时，请在 Web 中选择「默认模型」。明确股票代码或 Web 已选择的唯一股票只会为已开放的历史分析上下文工具建立股票范围；遇到同名歧义时不会猜测。

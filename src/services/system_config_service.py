@@ -3642,6 +3642,22 @@ class SystemConfigService:
         effective_map: Dict[str, str],
         primary_check: Dict[str, Any],
     ) -> Dict[str, Any]:
+        if (effective_map.get("AGENT_BACKEND") or "auto").strip().lower() == "codex_app_server":
+            status = AgentBackendStatusService(effective_map=effective_map).get_status()
+            return self._setup_check(
+                "llm_agent",
+                "Agent 渠道",
+                "agent",
+                True,
+                "configured" if status["available"] else "needs_action",
+                (
+                    "已启用 Codex 本地 Agent（实验），环境检查通过；登录与模型可用性由实际问股验证。"
+                    if status["available"]
+                    else status.get("message") or "Codex 本地 Agent 环境检查未通过。"
+                ),
+                None if status["available"] else "请在 Agent 设置中检查 Codex 运行状态及配置。",
+            )
+
         generation_backend = normalize_backend_id(
             effective_map.get("GENERATION_BACKEND"),
             default=LITELLM_BACKEND_ID,
