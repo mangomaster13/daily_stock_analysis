@@ -55,6 +55,7 @@
       "include": "installer.nsh"
     },
     "mac": {
+      "icon": "assets/icon.icns",
       "identity": null,
       "hardenedRuntime": false,
       "target": "dmg"

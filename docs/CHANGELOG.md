@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [改进] macOS 桌面应用使用暖白底、红色走势线图标。
 - [修复] 股票索引与名称缓存跟随数据库目录保存，避免桌面版首次运行写入应用包并破坏签名。
 - [修复] macOS 打包时为签名损坏的 Mach-O 文件重建 ad-hoc 签名，避免 Apple Silicon 因 Python 动态库缺少签名而无法启动后端。
 - [修复] 首次配置检查识别 Codex 本地 Agent，复用环境检查，避免已启用 Codex 时仍误报缺少 LiteLLM Agent 渠道。

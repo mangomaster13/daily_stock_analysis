@@ -2,6 +2,8 @@
 
 本项目可打包为桌面应用，使用 Electron 作为桌面壳，`apps/dsa-web` 的 React UI 作为界面。
 
+macOS 应用图标使用 `apps/dsa-desktop/assets/icon.icns`，由桌面端 `package.json` 的 `build.mac.icon` 指定，采用暖白底、红色走势线设计。
+
 ## 架构说明
 
 - React UI（Vite 构建）由本地 FastAPI 服务托管
