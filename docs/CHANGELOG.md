@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] 股票索引与名称缓存跟随数据库目录保存，避免桌面版首次运行写入应用包并破坏签名。
+- [修复] macOS 打包时为签名损坏的 Mach-O 文件重建 ad-hoc 签名，避免 Apple Silicon 因 Python 动态库缺少签名而无法启动后端。
 - [修复] 首次配置检查识别 Codex 本地 Agent，复用环境检查，避免已启用 Codex 时仍误报缺少 LiteLLM Agent 渠道。
 - [修复] 当前 Bot 与 Web 交替问股复用服务端已确认对象及严格工具范围，普通追问／比较保留确认状态，切股进入待确认；Bot 提交校验快照版本及用户锚点，保留真正旧代码／旁路写入的保守失效边界。
 - [修复] 严格回测读取兼容正常 CN 写入器生成的数字汇总／明细键，按已验证对象与关联分析来源约束 SQL，保留跨市场隔离及总数／分页一致性。

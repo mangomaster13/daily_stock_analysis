@@ -80,7 +80,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build-all.ps1
 
 ### macOS 提示“应用已损坏，无法打开”
 
-当前 macOS DMG 尚未使用 Apple Developer 证书签名和公证。构建配置会显式生成 unsigned 应用，在 PyInstaller 产物首次执行前清理残缺签名，并通过 electron-builder `afterPack` hook 在 DMG 创建前再次清理完整 `.app`；CI 还会检查 Electron 原始 `.app` 和 DMG 挂载后的 `.app`，阻止再次发布带有 `code has no resources but signature indicates they must be present` 等损坏签名的产物。该处理只能缓解 v3.27.0 的残缺签名缺陷，**不会让应用获得 Apple 信任**。通过浏览器下载后，macOS Gatekeeper 仍可能提示“无法验证开发者”、阻止启动，或要求用户人工确认。
+签名检查会为签名损坏的 Mach-O 可执行文件、动态库及外层 bundle 重建 ad-hoc 签名，保留 Apple Silicon 加载本地代码所需的签名。这不是 Apple Developer 签名或公证。如果后端日志出现 `missing code signature`，请用当前脚本重新打包，不要直接清除 Python 动态库或 App 的签名。
+
+当前 macOS DMG 尚未使用 Apple Developer 证书签名和公证。构建配置不使用开发者证书，在 PyInstaller 产物首次执行前修复残缺签名，并通过 electron-builder `afterPack` hook 在 DMG 创建前再次检查完整 `.app`；CI 还会检查 Electron 原始 `.app` 和 DMG 挂载后的 `.app`，阻止再次发布带有 `code has no resources but signature indicates they must be present` 等损坏签名的产物。该处理只能缓解 v3.27.0 的残缺签名缺陷，**不会让应用获得 Apple 信任**。通过浏览器下载后，macOS Gatekeeper 仍可能提示“无法验证开发者”、阻止启动，或要求用户人工确认。
 
 请按以下顺序排查：
 
@@ -102,7 +104,7 @@ codesign -d "/Applications/Daily Stock Analysis.app"
 spctl --assess --type execute --verbose=4 "/Applications/Daily Stock Analysis.app"
 ```
 
-当前 unsigned 产物的 `codesign -d` 预期包含 `code object is not signed at all`，`spctl` 预期拒绝；如果输出 `code has no resources but signature indicates they must be present` 或其它签名损坏信息，应视为发布阻断。
+未签名产物的 `codesign -d` 预期包含 `code object is not signed at all`；修复 Mach-O 签名后，`codesign -dv` 也可能显示 `Signature=adhoc`，此时必须通过 `codesign --verify --strict`。两种产物都没有 Apple Developer 签名，`spctl` 通常会拒绝；如果输出 `code has no resources but signature indicates they must be present` 或其它签名损坏信息，应视为发布阻断。
 
 建议发布流程：
 
@@ -273,6 +275,7 @@ win-unpacked/
 
 - Windows 桌面端的 `.env` 放在 exe 同目录下
 - macOS 打包版的 `.env`、`data/` 和 `logs/` 放在 Electron 用户数据目录，避免替换 `.app` 时丢失
+- 股票索引与名称缓存保存在 `DATABASE_PATH` 所在目录的 `cache/` 下，避免写入已签名的 `.app`
 - 首次启动时自动从 `.env.example` 复制生成
 - 从旧版本升级时，如果旧 `.app` 包内部的 `.env`、`data/stock_analysis.db` 或日志文件仍可访问，新版本会在目标文件不存在时自动迁移到用户数据目录；已有目标文件不会被覆盖
 - 用户需要编辑 `.env` 配置以下内容：

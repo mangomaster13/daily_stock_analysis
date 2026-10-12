@@ -27,22 +27,15 @@ fi
 
 checked_count=0
 signed_count=0
-removed_count=0
+repaired_count=0
 
-remove_broken_signature() {
+repair_broken_signature() {
   local candidate="$1"
-  local signature_details=""
-
-  echo "WARNING: removing invalid signature from unsigned macOS artifact: ${candidate}"
-  codesign --remove-signature "${candidate}"
-  removed_count=$((removed_count + 1))
-
-  signature_details="$(codesign -d "${candidate}" 2>&1 || true)"
-  if [[ "${signature_details}" != *"code object is not signed at all"* ]]; then
-    echo "ERROR: failed to remove invalid signature: ${candidate}" >&2
-    echo "${signature_details}" >&2
-    exit 1
-  fi
+  # Removing a bundle signature also unsigns its Mach-O entrypoint on Apple Silicon.
+  echo "WARNING: repairing invalid macOS signature: ${candidate}"
+  codesign --force --sign - "${candidate}"
+  codesign --verify --strict --verbose=4 "${candidate}"
+  repaired_count=$((repaired_count + 1))
 }
 
 audit_candidate() {
@@ -55,7 +48,7 @@ audit_candidate() {
       return 0
     fi
     if [[ "${mode}" == "normalize" ]]; then
-      remove_broken_signature "${candidate}"
+      repair_broken_signature "${candidate}"
       return 0
     fi
     echo "ERROR: unreadable or invalid signature in macOS artifact: ${candidate}" >&2
@@ -69,7 +62,7 @@ audit_candidate() {
   fi
 
   if [[ "${mode}" == "normalize" ]]; then
-    remove_broken_signature "${candidate}"
+    repair_broken_signature "${candidate}"
     return 0
   fi
 
@@ -90,4 +83,4 @@ done < <(
     -print0
 )
 
-echo "macOS signature audit complete: mode=${mode}, checked=${checked_count}, signed=${signed_count}, removed=${removed_count}"
+echo "macOS signature audit complete: mode=${mode}, checked=${checked_count}, signed=${signed_count}, repaired=${repaired_count}"

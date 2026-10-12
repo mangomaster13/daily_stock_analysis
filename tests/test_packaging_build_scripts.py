@@ -222,6 +222,29 @@ def test_macos_unsigned_packaging_contract_is_explicit() -> None:
     assert "run: bash scripts/build-desktop-macos.sh" in workflow
 
 
+@pytest.mark.parametrize("details, signed, accepted", [
+    ("Signature=adhoc", True, True),
+    ("code object is not signed at all", False, True),
+    ("Authority=Developer ID Application", True, False),
+    ("code has no resources but signature indicates they must be present", False, False),
+])
+def test_macos_package_accepts_valid_adhoc_or_unsigned_app(details, signed, accepted) -> None:
+    script = _read_text(REPO_ROOT / "scripts" / "build-desktop-macos.sh")
+    verifier = script[script.index("verify_expected_unsigned_app() {"):script.index("verify_unsigned_dmg() {")]
+    result = subprocess.run(
+        ["bash", "-c", "\n".join([
+            "set -eu; SCRIPT_DIR=unused",
+            "bash() { return 0; }",  # Isolate bundle policy from the separately tested file audit.
+            f"codesign() {{ printf '%s\\n' {shlex.quote(details)}; return {0 if signed else 1}; }}",
+            "spctl() { return 1; }",
+            verifier,
+            "verify_expected_unsigned_app 'Example.app'",
+        ])],
+        capture_output=True, text=True, check=False,
+    )
+    assert (result.returncode == 0) == accepted, result.stderr
+
+
 def _write_fake_macos_signature_tools(fake_bin: Path) -> None:
     fake_bin.mkdir()
     file_tool = fake_bin / "file"
@@ -235,6 +258,7 @@ def _write_fake_macos_signature_tools(fake_bin: Path) -> None:
         """#!/usr/bin/env bash
 candidate="${@: -1}"
 marker="${candidate}.removed"
+signed_marker="${candidate}.signed"
 case "$1" in
   -d)
     if [[ -f "${marker}" ]] || [[ "${candidate}" == *"unsigned.bin" ]]; then
@@ -244,13 +268,17 @@ case "$1" in
     printf 'Authority=adhoc\\n' >&2
     ;;
   --verify)
-    if [[ "${candidate}" == *"broken.bin" ]] && [[ ! -f "${marker}" ]]; then
+    if [[ "${candidate}" == *"broken.bin" || "${candidate}" == *"broken.app" ]] && [[ ! -f "${marker}" && ! -f "${signed_marker}" ]]; then
       printf 'broken signature\\n' >&2
       exit 1
     fi
     ;;
   --remove-signature)
     : > "${marker}"
+    ;;
+  --force)
+    [[ "$2" == "--sign" && "$3" == "-" ]] || exit 2
+    : > "${signed_marker}"
     ;;
 esac
 """,
@@ -261,13 +289,17 @@ esac
     codesign_tool.chmod(0o755)
 
 
-def test_macos_signature_audit_normalizes_invalid_signatures(tmp_path: Path) -> None:
+@pytest.mark.parametrize("is_bundle", [False, True])
+def test_macos_signature_audit_normalizes_invalid_signatures(tmp_path: Path, is_bundle: bool) -> None:
     fake_bin = tmp_path / "bin"
     _write_fake_macos_signature_tools(fake_bin)
     artifact = tmp_path / "artifact"
     artifact.mkdir()
-    broken = artifact / "broken.bin"
-    broken.write_text("broken", encoding="utf-8")
+    broken = artifact / ("broken.app" if is_bundle else "broken.bin")
+    if is_bundle:
+        broken.mkdir()
+    else:
+        broken.write_text("broken", encoding="utf-8")
     (artifact / "unsigned.bin").write_text("unsigned", encoding="utf-8")
 
     result = subprocess.run(
@@ -290,8 +322,9 @@ def test_macos_signature_audit_normalizes_invalid_signatures(tmp_path: Path) -> 
     )
 
     assert result.returncode == 0, result.stderr
-    assert (artifact / "broken.bin.removed").is_file()
-    assert "removed=1" in result.stdout
+    assert not Path(f"{broken}.removed").exists()
+    assert Path(f"{broken}.signed").exists()
+    assert not (artifact / "unsigned.bin.signed").exists()
 
 
 def test_macos_signature_audit_rejects_invalid_signatures(tmp_path: Path) -> None:

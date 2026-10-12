@@ -67,9 +67,10 @@ _akshare_inflight: Optional[concurrent.futures.Future] = None
 
 # 磁盘缓存：成功拉取后原子落盘，重启时懒加载为 stale 数据。股票名称表
 # 变化频率极低，跨重启复用把"冷启动等待"压缩到仅剩磁盘也无数据的场景。
-# 路径遵循 data/cache 约定（该目录已 gitignore）。
+# 缓存跟随数据库目录，避免桌面版写入已签名的应用包。
 _AKSHARE_DISK_CACHE_PATH = (
-    Path(__file__).resolve().parents[2] / "data" / "cache" / "akshare_name_map.json"
+    Path(os.environ.get("DATABASE_PATH") or Path(__file__).resolve().parents[2] / "data" / "stock_analysis.db").parent
+    / "cache" / "akshare_name_map.json"
 )
 _akshare_disk_checked = False
 
